@@ -72,19 +72,24 @@ async function getInstagramImage(postUrl) {
         console.log('Launching browser...');
         browser = await puppeteer.launch({
             headless: 'new',
-            executablePath: '/usr/bin/google-chrome-stable',  // This path is inside Docker
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome-stable',
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                '--disable-gpu'
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--disable-dev-shm-usage',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process',
+                '--disable-extensions'
             ]
         });
 
         console.log('Creating new page...');
         const page = await browser.newPage();
 
-        // Set viewport and user agent
         await page.setViewport({ width: 1280, height: 800 });
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
@@ -119,19 +124,7 @@ async function getInstagramImage(postUrl) {
     }
 }
 
-// Test endpoint
-app.get('/', (req, res) => {
-    res.json({ message: 'Server is running!' });
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'ok',
-        timestamp: new Date().toISOString()
-    });
-});
-
+// Rest of your code remains the same...
 // Main endpoint to get Instagram image
 app.post('/get-instagram-image', async (req, res) => {
     try {
