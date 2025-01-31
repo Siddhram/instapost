@@ -58,7 +58,7 @@
 // })();
 const express = require('express');
 const cors = require('cors');
-const puppeteer = require('puppeteer-core'); // Change to puppeteer-core
+const puppeteer = require('puppeteer-core');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -69,20 +69,35 @@ app.use(express.json());
 async function getInstagramImage(postUrl) {
     let browser = null;
     try {
+        console.log('Launching browser...');
         browser = await puppeteer.launch({
             headless: 'new',
-            // For Windows, specify the Chrome path
-            executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            executablePath: '/usr/bin/google-chrome-stable', // Use exact path
             args: [
                 '--no-sandbox',
-                '--disable-setuid-sandbox'
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process'
             ]
         });
 
-        // Rest of your code remains the same
+        console.log('Creating new page...');
         const page = await browser.newPage();
-        await page.goto(postUrl, { waitUntil: 'networkidle0' });
+        
+        // Set viewport and user agent
+        await page.setViewport({ width: 1280, height: 800 });
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
+        console.log('Navigating to URL:', postUrl);
+        await page.goto(postUrl, { 
+            waitUntil: 'networkidle0',
+            timeout: 30000 
+        });
+
+        console.log('Evaluating page...');
         const imageUrl = await page.evaluate(() => {
             const imageElement = document.querySelector('meta[property="og:image"]');
             return imageElement ? imageElement.content : null;
@@ -92,19 +107,24 @@ async function getInstagramImage(postUrl) {
             throw new Error('Image URL not found');
         }
 
+        console.log('Found image URL:', imageUrl);
         return imageUrl;
 
     } catch (error) {
-        console.error("Error:", error);
+        console.error("Error in getInstagramImage:", error);
         throw error;
     } finally {
         if (browser) {
+            console.log('Closing browser...');
             await browser.close();
         }
     }
 }
 
-// Rest of your code remains the same
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
 
 app.post('/get-instagram-image', async (req, res) => {
     const { postUrl } = req.body;
@@ -118,10 +138,15 @@ app.post('/get-instagram-image', async (req, res) => {
         }
         res.json({ imageUrl });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch image', details: error.message });
+        console.error('Error handling request:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch image', 
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
 
-app.listen(PORT,"0.0.0.0", () => {
+app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server is running on port ${PORT}`);
 });
