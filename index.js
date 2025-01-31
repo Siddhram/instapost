@@ -58,7 +58,7 @@
 // })();
 const express = require('express');
 const cors = require('cors');
-const puppeteer = require('puppeteer');  // Change to regular puppeteer
+const puppeteer = require('puppeteer-core');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -72,17 +72,12 @@ async function getInstagramImage(postUrl) {
         console.log('Launching browser...');
         browser = await puppeteer.launch({
             headless: 'new',
+            executablePath: '/usr/bin/google-chrome-stable',  // Fixed path
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--disable-software-rasterizer',
-                '--disable-dev-shm-usage',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',
-                '--disable-extensions'
+                '--disable-gpu'
             ]
         });
 
