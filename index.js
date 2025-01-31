@@ -72,46 +72,44 @@ async function getInstagramImage(postUrl) {
         console.log('Launching browser...');
         browser = await puppeteer.launch({
             headless: 'new',
-            executablePath: '/usr/bin/google-chrome-stable', // Use exact path
+            executablePath: '/usr/bin/google-chrome-stable',  // This path is inside Docker
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process'
+                '--disable-gpu'
             ]
         });
 
         console.log('Creating new page...');
         const page = await browser.newPage();
-        
+
         // Set viewport and user agent
         await page.setViewport({ width: 1280, height: 800 });
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
-        console.log('Navigating to URL:', postUrl);
+        console.log(`Navigating to URL: ${postUrl}`);
         await page.goto(postUrl, { 
             waitUntil: 'networkidle0',
             timeout: 30000 
         });
 
-        console.log('Evaluating page...');
+        console.log('Extracting image URL...');
         const imageUrl = await page.evaluate(() => {
             const imageElement = document.querySelector('meta[property="og:image"]');
             return imageElement ? imageElement.content : null;
         });
 
         if (!imageUrl) {
+            console.log('No image URL found');
             throw new Error('Image URL not found');
         }
 
-        console.log('Found image URL:', imageUrl);
+        console.log('Successfully found image URL:', imageUrl);
         return imageUrl;
 
     } catch (error) {
-        console.error("Error in getInstagramImage:", error);
+        console.error('Error in getInstagramImage:', error.message);
         throw error;
     } finally {
         if (browser) {
@@ -121,32 +119,71 @@ async function getInstagramImage(postUrl) {
     }
 }
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok' });
+// Test endpoint
+app.get('/', (req, res) => {
+    res.json({ message: 'Server is running!' });
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'ok',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Main endpoint to get Instagram image
 app.post('/get-instagram-image', async (req, res) => {
-    const { postUrl } = req.body;
-    if (!postUrl) {
-        return res.status(400).json({ error: 'Missing postUrl parameter' });
-    }
     try {
-        const imageUrl = await getInstagramImage(postUrl);
-        if (!imageUrl) {
-            return res.status(404).json({ error: 'Image not found' });
+        const { postUrl } = req.body;
+        
+        if (!postUrl) {
+            console.log('Missing postUrl in request');
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Missing postUrl parameter' 
+            });
         }
-        res.json({ imageUrl });
+
+        console.log('Processing request for URL:', postUrl);
+        const imageUrl = await getInstagramImage(postUrl);
+        
+        if (!imageUrl) {
+            console.log('No image URL found');
+            return res.status(404).json({ 
+                success: false, 
+                error: 'Image not found' 
+            });
+        }
+
+        console.log('Successfully processed request');
+        res.json({ 
+            success: true, 
+            imageUrl 
+        });
+
     } catch (error) {
-        console.error('Error handling request:', error);
+        console.error('Error processing request:', error.message);
         res.status(500).json({ 
-            error: 'Failed to fetch image', 
-            details: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            success: false, 
+            error: 'Failed to fetch image',
+            details: error.message
         });
     }
 });
 
+// Start server
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server is running on port ${PORT}`);
+    console.log(`Health check available at /health`);
+    console.log(`Instagram image scraper available at /get-instagram-image`);
+});
+
+// Error handling for uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (error) => {
+    console.error('Unhandled Rejection:', error);
 });
